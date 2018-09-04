@@ -10,11 +10,11 @@
 
   `struct sdshdr{`
 
-  ​	`int len;`
-
-  ​	`int free;`
-
-  ​	`char buf[]`
+  	`int len;`
+	
+  	`int free;`
+	
+  	`char buf[]`
 
   `}`
 
@@ -41,10 +41,45 @@
   > 2 种优化策略：空间预分配、惰性空间释放
 
   * 空间预分配
+
     * 当 SDS 空间需要扩展时，程序不仅会为其分配所必要大小的空间，还会为其分配额外的未使用的空间
     * 减少了连续执行字符串增长操作所需要的内存分配次数
+
   * 惰性空间释放
+
     * 当字符串执行缩短操作时，程序并不立即释放未使用的空间，而是通过 free 属性记录未使用的空间，并等将来使用
     * 在真正需要的时候，通过 SDS API 释放这些未使用的空间
 
-  # 链表
+# 链表
+
+## 链表和链表节点的实现
+
+  `typedef struct listNode {`
+
+  	`struct listNode *prev;`
+
+  	`struct listNode *next;`
+
+  	`void *value`;
+
+  `}`
+
+`typedef struct list{`
+
+​	`listNode *head;`
+
+​	`listNode *tail;`
+
+​	`unsigned long len`；
+
+​	`……`
+
+`}`
+
+* 多个 listNode 通过 prev 和 Next 指针实现双端链表
+* listNode 中 value 属性记录了节点的值
+* 链表由 list 结构和 listNode 结构组成
+* list 结构的 head 指针指向由 listNode 组成的双端链表的首个 listNode
+* list 结构的 tail 指针指向由 listNode 组成的双端链表的最后一个 listNode 
+* list 结构的 len 属性记录了链表的长度，listNode 的数量
+* 链表的头结点 prev 指针和尾节点 Next 指针都指向 null，表示访问终点
