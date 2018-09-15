@@ -129,3 +129,124 @@
   * 和 cmd、entrypoint 一样，该命令只可以出现一次，如果多写了，只有最后一个有效
 * `onbuild` 
   * 是一个特殊的指令，其后跟的是其他指令，如 run、copy 等。而这些指令在镜像构建时并不会执行，只有当以当前镜像为基础去构建下一级镜像时才会被执行
+
+# 操作容器
+
+* 容器是独立运行的一个或者一组应用，以及他们的运行态环境
+* 虚拟机是模拟的一整套操作系统（提供了运行态环境和其他系统环境）即运行在上面的应用
+
+## 启动
+
+* 基于镜像新建容器并启动：`docker run -it ubuntu bash` 
+  * 检查本地是否存在指定的镜像，不存在就从共有仓库下载
+  * 利用镜像创建并启动一个容器
+  * 分配一个文件系统，并在只读的镜像层外挂载一层可读写层
+  * 从宿主主机配置的网桥接口中桥接一个虚拟接口到容器中
+  * 从地址池配置一个 IP 给容器
+  * 执行用户指定的应用程序
+  * 执行完毕后容器被终止
+* 已终止的容器重新启动： `docker container start`
+
+## 后台运行
+
+* `docker run -d ubuntu bash` 参数 `-d` 指明了以后台形式运行
+* `docker container ls` 查看启动的容器
+* `docker container logs [container ID or NAMES]` 获取容器日志信息
+
+## 终止容器
+
+* `docker container stop` 用于终止一个运行中的容器
+* `docker container start`
+* `docker container restart`
+
+## 进入容器
+
+* 使用 -d 参数时，容器启动后进入后台
+* 当需要对容器进行操作的时候，可以使用 `docker exec`
+* `docker run -dit ubuntu 
+* `docker container ls`
+* `docker exec -it [ID] bash`
+
+## 导出和导入容器
+
+* `docker ps -a` 查看容器
+* `docker export [ID] > XXX.tar`：将容器快照导出到本地文件
+* `docker import` 导入容器快照到本地进行库
+
+## 删除容器
+
+* `docker container rm [容器]` 删除一个处于终止状态的容器
+* 若要对运行中的容器进行删除，需要添加参数 -f 。docker 会发送 sigkill 信号给容器
+* `docker container prune` 用于删除所有处于终止状态的容器
+* `docker container ls -a` 查看所有已创建的包括终止状态的容器
+
+# Docker 数据管理
+
+* 在容器中管理数据主要有两种方式：数据卷、挂载主机目录
+
+## 数据卷
+
+* 是一个特殊的目录，可供一个或多个容器使用
+* 可以在容器之间共享和重用
+* 对数据卷的修改会马上生效
+* 对数据卷的更新不会影响到镜像
+* 数据卷默认一直存在，即使容器被删除
+* 推荐选择 `--amount`
+
+### 操作数据卷
+
+* 创建数据卷`docker volume create my-vol`
+* 查看所有数据卷 `docker volume ls`
+* 查看指定数据卷的信息：`docker volume inspect [ID]`
+* 启动一个挂载数据卷的容器
+  * `docker run -d -P --name web --amount source=my-vol target=/webapp training=/webapp python app.py`
+  * --amount 标记将数据卷挂载到容器中
+  * 一次 docker run 中可以挂载多个数据卷
+  * 创建一个名为 web 的容器，并加载一个数据卷到容器的 /webapp 目录
+* 查看数据卷的具体信息：`docker inspect web` 
+* 删除数据卷
+  * `docker volume rm my-vol`
+  * 数据卷是用来持久化数据的，独立于容器。docker 在容器删除之后，不会自动删除数据卷
+  * 无主的数据卷可能会占用很多空间，可以使用 `docker volume prune` 清理这些无主的数据卷
+
+## 挂载主机目录和文件
+
+* 推荐使用 `--amount` 参数进行挂载
+*  挂载一个主机目录作为数据卷
+  * `--amount` 标记可以指定挂载一个本地主机目录到容器中去
+  * `docker run -d -P --name web --amount type=bind,source=/src/webapp,target=/opt/webapp training/webapp python app.py`
+  * 将主机的 /src/webapp 目录加载到容器的 /opt/webapp 目录
+* 挂载一个本地文件作为数据卷
+  * `--amout` 也可以从主机挂载单个文件到容器中
+  * `docker run --rm -it --amount type=bind,source=$HOME/.bash_history,target=/root/.bash_history ubuntu bash`
+
+# 使用网络
+
+* docker 允许外部访问容器和容器互联
+
+## 外部访问容器
+
+* 容器通过 -p 或者 -P 参数指定端口映射
+* `-P` 标记时， docker 会随机映射一个 49000~49900 的端口到内部容器开放的网络端口
+* 如果本地主机的 49155 被映射到了容器的 5000 端口，此时可以访问本机的 49155 端口即可访问容器内 web 应用提供的界面
+* `-p` 可以指定要映射的端口，且在一个指定端口上只可以绑定一个容器
+
+### 映射所有接口地址
+
+* 使用 hostPort:containerPort 格式本地的 5000 端口映射到容器的 5000 端口，会默认绑定本地所有接口上的所有地址
+* `docker run -d -p 5000:5000 traning/webapp python app.py`
+
+### 映射到指定地址的指定端口
+
+* 使用 ip:hostPort:containerPort 格式指定映射使用一个特定的地址
+* `docker run -d -p 127.0.0.1:5000:5000 training/webapp python app.py`
+
+### 映射到指定地址的任意端口
+
+* 使用 ip::containerPort 绑定 localhost 的任意端口到容器的 5000 端口，本地主机会自动分配一个端口
+* `docker run -d -p 127.0.0.1::5000 training/webapp python app.py`
+
+### 查看映射端口配置
+
+* `docker port` 
+* 容器有自己的内部网络和 IP 地址
