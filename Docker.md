@@ -250,3 +250,75 @@
 
 * `docker port` 
 * 容器有自己的内部网络和 IP 地址
+
+## 容器互联
+
+* 推荐将容器加入自定义的 Docker 网络来连接多个容器，而不是使用 ` --link` 参数
+
+### 新建网络
+
+* `docker network create -d bridge my-net` 
+* -d 指定网络类型：bridge 或者 overlay
+
+### 连接容器
+
+* 通过两个终端工具，运行 2 个容器并连接到刚才新建的 my-net 网络
+  * `docker run -it --rm --name busybox1 --network my-net busybox sh`
+  * `docker run -it --rm --name busybox2 --network my-net busybox sh`
+
+# Docker Compose
+
+* docker compose 是 docker 官方编排项目之一，负责快速在集群中部署分布式应用
+* 定义和运行多个 docker 容器的应用
+* dockerfile 文件可以定义一个单独的应用容器。但是很多情况下，一个应用需要多个容器之间的配合以完成任务，如数据库服务容器等
+* compose 允许通过一个单独的 `docker-compose.yml` 模板文件来定义一组相关联的应用容器为一个项目
+* compose 两个重要的概念
+  * 服务（service）：一个应用的容器，实际上可以包括若干运行相同镜像的容器实例
+  * 项目（project）：由一组关联的应用容器组成的一个完整的业务单元，在 docker-compose.yml 文件中定义
+
+## 使用
+
+* 一个项目 project 可以由多个服务 service（容器）关联组成
+* 场景：一个web 网站，其中包含 web 应用和 redis 缓存
+
+## docker compose 命令使用说明
+
+* docker-compose 命令默认使用的模板是 docker-compose.yml 文件，可以通过 -f 指定非默认的文件
+* `docker-compose -f | -p | -v | --x-networking | build | --pull | config | down | exec | help | images | kill | logs | help | pause | port | ps | pull | push | restart | rm | run` 等实现特定功能
+
+## compose 模板文件
+
+* 模板文件是 compose 的核心，涉及到很多关键字，默认为 docker-compose.yml，格式是 YAML 格式
+
+> ` version: "3"` 
+>
+> `services:`
+>
+> ​    `webapp:`
+>
+> ​	 `image:example/web`
+>
+> ​       `ports:`
+>
+> ​	     `- "80:80"`
+>
+> ​	 `volumes:`
+>
+> ​          `- "/data"`	
+
+* 每个服务必须通过 image 指令指定镜像或者 build 指令（dockerfile）等来自动构建生成镜像
+* build 指令：使用此指令在 Dockerfile 文件中设置的选项（CMD、EXPOSE、VOLUME、ENV）将会自动被获取，无需要在 docker-compose.yml 文件中重复设置
+  * 指定 Dockerfile 所在文件夹的路径（绝对路径或者相对于 docker-compose.yml 文件的路径）
+  * context 指令指定 Dockerfile 所在文件夹的路径
+  * dockerfile 指令指定 Dockerfile 文件名
+  * arg 指令指定构建镜像时的变量
+* command 指令：覆盖容器启动后默认执行的命令
+* depends_on：解决容器的依赖、启动先后的问题
+* tmpfs：挂载一个 tmpfs 文件系统到容器
+* env_file：从文件中获取环境变量，可以是单独的文件路径或者列表
+* environment：设置环境变量，数组或者字典格式
+* expose：暴露端口，但不映射到宿主机，只被连接的服务访问
+* healthcheck：检查容器是否健康运行
+* image：指定为镜像名称或者镜像 ID。如果镜像本地不存在则 compose 将尝试拉取该镜像
+* labels：为容器添加 Docker 元数据信息
+* 读取变量：compose 模板文件支持动态读取主机的系统环境变量和当前目录下的 .env 文件中的变量  
