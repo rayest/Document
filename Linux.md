@@ -8,7 +8,7 @@
 
 > lsof | wc -l 
 
-> lsof -i |grep tymetrobill
+> lsof -i | grep tymetrobill
 
 
 
