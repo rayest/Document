@@ -30,3 +30,6 @@
 
 * Kubernetes属于主从分布式集群架构，Kubernetes Node 运行并管理容器
 * Node作为Kubernetes的操作单元，用来分配给Pod（或者说容器）进行绑定，Pod最终运行在Node上，Node可以认为是Pod的宿主机
+
+# Kubernetes的架构和部署
+
