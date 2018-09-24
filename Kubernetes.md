@@ -31,5 +31,13 @@
 * Kubernetes属于主从分布式集群架构，Kubernetes Node 运行并管理容器
 * Node作为Kubernetes的操作单元，用来分配给Pod（或者说容器）进行绑定，Pod最终运行在Node上，Node可以认为是Pod的宿主机
 
-# Kubernetes的架构和部署
+## 入门
+
+* 在 Kubernetes 中，service 服务是分布式集群架构的核心，一个 service 对象的核心特征
+  * 有唯一指定的名字
+  * 有一个虚拟 IP 和端口
+  * 能提供远程服务能力
+  * 被映射到了提供这种服务能力的一组容器上
+* Kubernetes 设计了 Pod 对象，将服务进程包装到相应的 Pod 中，使其成为 Pod 中运行的一个容器
+* 
 
