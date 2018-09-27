@@ -27,3 +27,72 @@
 
 ## 并发级别
 
+* 临界区的存在，使得必须要控制多线程之间的并发，根据并发的策略，把并发的级别分为了阻塞、无饥饿、无障碍、无锁、无等待
+
+# 并行程序基础
+
+## 线程的基本操作
+
+### 新建线程
+
+> ```java
+> public class ThreadDemo1 implements Runnable{
+>     
+>     private static Logger logger = LoggerFactory.getLogger(ThreadDemo1.class);
+> 
+>     @Override
+>     public void run() {
+>         System.out.println("实现 Runnable 接口，处理业务逻辑");
+>     }
+> 
+>     public static void main(String[] args) {
+>         logger.info("新建线程并启动");
+>         Thread thread = new Thread(new ThreadDemo1());
+>         thread.start();
+>     }
+> }
+> ```
+
+* `new Thread()` 并实现 `Runnable `接口
+
+### 终止线程
+
+* `new Thread().stop()` 用于暴力终止线程，已被摒弃
+* 可能会在多线程数据写入时，导致数据写入不一致
+* `stop`会直接终止线程，并且会立即释放该线程所持有的锁，该锁用于维持对象的一致性。当数据写入一部分时，被直接终止，写对象遭到破坏，会被另外的线程读到该不一致的数据
+* 可以自行定义线程终止的条件，当满足该条件时，就退出线程
+
+### 线程中断
+
+* 不会使线程立即退出，而是会给该线程发送通知，该线程收到该通知后，会根据具体情况自行处理
+
+* 线程中断涉及到的三个方法
+
+* ```java
+  public void Thread.interrupt() // 中断线程，设置中断标志位
+  public boolean Thread.isInterrupted() // 判断线程是否被中断，检查中断标志位
+  public static boolean Thread.interrupted() // 是否被中断，并清除当前中断状态，清除中断标志位
+  ```
+
+* 三个方法都涉及到`中断标志位`
+
+  * 如果要通过该方法退出线程，需要先中断线程，并在判断其中断状态后，执行退出操作
+
+### Sleep 函数
+
+* 使当前线程休眠若干时间，当休眠中的线程被中断时，会抛出中断异常`InterruptedException`
+
+### Wait 函数和Notify 函数
+
+* `wait()`和`notify()`是 Object 类的内部方法，可供任何对象调用。实例对象调用该方法后，当前线程就会停止继续执行，而在该对象上等待，直到其他线程调用 `notify()`方法为止，线程才继续执行
+* 线程调用`wait()`方法后会进入对象的等待队列，该队列中可能有多个线程同时等地一个对象
+* 线程调用`notify()`方法后，对象会在等待队列中随机选择一个线程，并将其唤醒
+* `notifyAll()`会唤醒等待队列中的所有线程
+* `wait()`的调用必须在`synchronized`语句中，`wait()`和`notify()`都需要首先获得目标对象的一个监视器
+* `wait()`执行后会释放这个监视器
+* `wait()`方法也可以让线程等待若干时间，且该方法会释放目标对象的锁，而`sleep`方法不会释放任何资源
+
+
+
+
+
