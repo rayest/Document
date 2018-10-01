@@ -169,3 +169,125 @@
   * 指定加锁对象，对给定的对象加锁
   * 直接作用于实例方法，对当前实例加锁
   * 直接作用于静态方法，在当前类上加锁
+
+#  JDK 并发包
+
+## 同步控制
+
+### 重入锁
+
+* 重入锁可以完全替代 synchronized 关键字
+  * 中断响应
+  * 锁申请等待限时：过时不请求
+  * 公平锁：先到先到，终会得到。维护成本、性能低，默认是非公平的
+
+### 重入锁的搭档：Condition 条件
+
+* `Object.wait()`和`Object.notify()`是配合 `synchronized` 关键字使用的
+
+* condition 是配合重入锁使用的，等待和通知类似于 Object。Condition 接口的方法：
+
+* ```java
+  void await() throws InterruptedException;
+  void awaitUninterruptibly();
+  long awaitNanos(long nanosTimeout) throws InterruptedException;
+  boolean await(long time, TimeUnit unit) throws InterruptedException;
+  boolean awaitUtil(Date deadline) throws InterruptedException;
+  void signal();
+  void signalAll();
+  ```
+
+### 允许多个线程同时访问：信号量（Semaphore）
+
+* 对锁的扩展，与内部锁 synchronized 和可重入锁 ReentrantLock 不同，信号量可指定多个线程同时访问同一个资源
+
+```java
+public Semaphore(int permits); // 准入数，许可
+public Semaphore(int permits, boolean fair); // 是否公平
+```
+
+### ReadWriteLock 读写锁
+
+* 读写锁允许多个线程同时读，使读与读之间真真并行
+* 考虑到数据完整性，读写之间和写写之间需要相互等待
+* 读读不互斥，其余情况都需要阻塞
+* 读次数远大于写操作时，读写锁的性能最优
+
+### 倒计时器：CountDownLatch
+
+* 门栓。锁住线程，用于控制线程等待，让某一个线程等待直到倒计时器结束，再开始继续执行
+
+### 循环栅栏：CyclicBarrier
+
+* 与 countDownLatch 类似，用于实现线程间的计数等待
+* 栅栏即障碍物，阻止线程继续执行；循环即为该计时器可以反复使用
+
+### 线程阻塞工具类：LockSupport
+
+* 可以在线程内任意位置让线程阻塞
+* `park()` 方法可以阻塞当前线程，实现了一个限时等待
+
+## 线程复用：线程池
+
+* 多线程的频繁使用可能会对系统产生不利的影响，因此需要控制线程的数量
+* 创建和销毁线程需要时间，线程会占用内存空间，线程回收也会给GC带来压力
+* 数据库连接池
+  * 使用数据库连接池维护一些数据库连接，让他们长期维持在一个激活状态
+  * 当需要使用数据库时，并不是需要创建一个新的连接，而是从连接池中获得一个可用的连接即可
+  * 当需要关闭连接时，并不真的将连接关闭，而是将该连接归还给连接池
+  * 节约了创建和销毁的时间
+* 线程池亦如是
+* `newFIxedThreadPool()`
+  * 返回固定线程数量的线程池，线程池中的数量始终不变
+  * 当有一个新的任务提交时，若线程池中有空闲的线程，则立即执行
+  * 若没有，新任务会被暂存在一个任务列表中，待有空闲线程时，再处理任务列表中的任务
+* `newSingleThreadExecutor()`
+  * 返回只有一个线程的线程池
+  * 若有多余的任务被提交到线程池，则该任务会被保存到一个任务列表中，待线程空闲时，按先进先出的顺序执行列表中的任务
+* `newCachedThreadPool()`
+  * 返回可根据实际情况调整线程数量的线程池，线程数量不固定
+  * 若有空闲线程可以使用，则优先使用可复用的线程
+  * 若所有的线程都在工作，则在有新任务提交时，会创建新的线程处理
+  * 当所有的线程都执行完毕后，将线程返还给线程池
+* `newSingleThreadScheduledExecutor()`
+  * 返回`ScheduledExecutorService()`对象，线程池大小为1。在给定时间执行某任务的功能
+* `newScheduledThreadPool()`
+  * 返回`ScheduledExecutorService()`对象，线程池可以指定线程数量
+
+### 拒绝策略
+
+* 当任务数量超过了系统实际承载能力时，需要用到拒绝策略
+* 线程池中线程用完，等待队列中也已经排满
+* 4 种JDK内置的拒绝策略
+  * AbortPolicy：直接抛出异常，阻止系统正常工作
+  * CallerRunsPolicy：只要线程池未关闭，该策略直接在调用者线程中，运行当前被抛弃的任务
+  * DiscardOldestPolicy：丢弃最老一个请求，即即将被执行的一个任务，并尝试再次提交当前任务
+  * DiscardPolicy：默默丢弃无法处理的任务，不予任何处理
+
+### 自定义线程创建：ThreadFactory
+
+* 线程池创建线程时，会调用接口 ThreadFactory 的 newThread() 方法
+
+### 分而治之：Fork/Join 框架
+
+* `fork()`开启线程，使得系统多一个执行分支。`join()`表示等待
+* JDK 的 ForkJoinPool 线程池
+* 两个线程会相互帮助。如果一个线程完成任务，另一个线程未完成，则会从未完成任务的线程的任务队列中拿出一个任务进行处理
+* 线程帮助另一个线程时，线程试图从另一个线程的任务队列的底部开始拿数据，与另一个线程相反。避免数据竞争
+
+## JDK 内部的轮子
+
+### 并发集合
+
+* copyOnWriteArrayList
+* ConcurrentHashMap
+* ConcurrentLinkedQueue
+* BlockingQueue
+* ConcurrentSkipListMap
+
+### 高效读取
+
+* 当读操作远大于写操作时，希望读操作快，而写操作慢一些影响不大
+* CopyOnWriteArrayList 对读取不用加锁，仅在写与写之间需进行同步等待，读操作性能就会较大提升，因为不会阻塞
+* 即写时复制。仅在需要写的时候，复制一份数据作为副本，写完之后将修改完的数据替换原来的数据，而不影响读
+
