@@ -1,16 +1,17 @@
 # Linux
 
-#### 进程
+* 关于进程
 
-> ps aux
+```bash
+$ ps aux
+$ ps -ef | grep sshd | less
+$ lsof | wc -l
+$ lsof -i | grep tymetrobill
+```
 
-> ps -ef | grep sshd | less
+* Linux 或者 macOS 生成随机密码
 
-> lsof | wc -l 
-
-> lsof -i | grep tymetrobill
-
-
-
-
+```bash
+$ openssl rand -base64 12
+```
 
