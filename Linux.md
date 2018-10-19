@@ -31,3 +31,13 @@ $ openssl rand -base64 12
 $ df -h
 ```
 
+## 安装
+
+* 更改 yum 源为阿里云源，并使用 yum 安装 Redis
+
+> 参考：https://www.jianshu.com/p/ebda253a8daa
+
+* 使用 yum 安装 JDK1.8
+
+> 参考：https://my.oschina.net/andyfeng/blog/601291
+
