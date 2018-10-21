@@ -1,5 +1,7 @@
 # Linux
 
+> 基于个人服务器 centos-7.6
+
 ## 进程
 
 ```bash
@@ -41,3 +43,18 @@ $ df -h
 
 > 参考：https://my.oschina.net/andyfeng/blog/601291
 
+* 使用 yum 安装 Docker
+
+```bash
+$ yum list docker
+$ sudo yum -y install docker.x86_64
+$ systemctl start docker
+```
+
+## 阿里云
+
+* 暴露端口
+
+> 在实例中找到·安全组规则·，设置端口范围80/80或者91/91等，授权对象 0.0.0.0/0
+>
+> 访问：http://ip:port
