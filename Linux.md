@@ -51,10 +51,20 @@ $ sudo yum -y install docker.x86_64
 $ systemctl start docker
 ```
 
+* yum 安装 mysql
+
+> 参考：https://qizhanming.com/blog/2017/05/10/centos-7-yum-install-mysql-57
+>
+> 添加远程登录用户时，admin 为数据库新用户，secret 为密码
+>
+> systemctl enable firewalld
+>
+> systemctl start firewalld
+
 ## 阿里云
 
 * 暴露端口
 
-> 在实例中找到·安全组规则·，设置端口范围80/80或者91/91等，授权对象 0.0.0.0/0
+> 在实例中找到·安全组规则·，设置端口范围 80/80、91/91、3306/3306等，授权对象 0.0.0.0/0
 >
 > 访问：http://ip:port
