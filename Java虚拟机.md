@@ -193,3 +193,126 @@ $ java -XX:MaxPermSize=64M
 * 若不指定元数据区大小，虚拟机会耗尽所有的可用系统内存
 
 # 常用Java虚拟机参数
+
+## 跟踪调试参数
+
+* 通过 JVM 提供的用于跟踪系统状态的参数，分析和排查问题
+
+### 跟踪垃圾回收
+
+* Java 自动进行垃圾回收，若垃圾回收过于频繁或者垃圾回收占用太长的CPU时间，需要排查
+
+```bash
+$ java -XX:+PrintGC  # 凡是遇到 GC，就会输出日志 
+$ java -XX:+PrintGCDetails # 详细的 GC 信息
+$ java -XX:PrintHeapAtGC
+$ java -XX:+PrintGCApplicationStoppedTime  # 打印程序由于GC而产生的停顿时间
+......
+```
+
+```javascript
+若输出：[GC 2048K->424K(9728K), 0.0007689 secs]
+表示：一次GC，GC前堆空间使用量为2MB，GC后堆空间使用量为424KB，当前可用堆空间总和9728KB，时间是GC花费的时间
+```
+
+### 类加载/卸载跟踪
+
+* 系统加载的类位于文件系统中，以Jar的形式打包或者class文件的形式存在。而动态代理或者AOP生成的类无法通过文件系统找到，可以通过JVM虚拟机提供的类加载和卸载跟踪参数进行跟踪
+
+```bash
+$java -XX:+TraceClassUnloading
+$java -XX:+TraceClassLoading
+```
+
+### 系统参数查看
+
+* 查看当前应用或者系统使用了哪些JVM参数
+
+```bash
+$ java -XX:+PrintVMOptions  # 打印了虚拟机接收到的命令行显示参数
+$ java -XX:+PrintCommandLineFlags  # 打印了虚拟机接收到的命令行显示参数、以及隐式参数(默认的参数)
+$ java -XX:+PrintFlagsFinal  # 打印所有的系统参数及其当前取值
+```
+
+## 堆的配置参数
+
+### 最大堆和初始堆
+
+```bash
+$ java -Xms5m  # JVM启动时，会分配一块初始堆空间，其大小通过该命令指定
+$java -Xmx20m  # JVM耗尽初始堆空间时，会对堆空间进行扩展，扩展上限为最大堆空间，其大小通过该命令指定
+```
+
+### 新生代
+
+```bash
+$ java -Xmn1m  # 新生代的大小一般为整个堆空间的 (1/4 ~ 1/3)
+$ java -XX:SurvivorRatio=eden/from(eden/to)  # 设置新生代中 eden 空间和 from/to 空间的比例关系
+$ java -XX:NewRatio=老年代/新生代
+```
+
+```java
+public class NewSizeDemo {
+    public static void main(String[] args) {
+        byte[] b = null;
+        for (int i = 0; i < 10; i++) {
+            b = new byte[1 * 1024 * 1024];
+        }
+    }
+}
+```
+
+```bash
+$ java -Xmx20m -Xms20m -Xmn1m -XX:SurvivorRatio=2 -XX:+PrintGCDetails NewSizeDemo  # ①
+$ java -Xmx20m -Xms20m -Xmn7m -XX:SurvivorRatio=2 -XX:+PrintGCDetails NewSizeDemo  # ②
+$ java -Xmx20m -Xms20m -Xmn15m -XX:SurvivorRatio=8 -XX:+PrintGCDetails NewSizeDemo  # ③
+```
+
+* 上述示例：连续向系统请求 10MB 空间（每次 1MB）。配置三种不同的JVM参数，GC日志不同（JVM行为不同）
+* 三种方式，分别设置新生代大小为1、7、15MB，eden/from(to) 大小分别为2、2、8。（详细解释查阅《实战Java虚拟机》）
+* 说明：在大多数情况下对象首先被分配在eden区，在一次新生代回收后，若对象还活着，则会进入from或者to区。之后每经过一次新生代回收，对象如果还活着，其年龄就会加 1。当年龄达到一定条件后，进入老年代
+* 总之：基本策略是，尽可能将对象留在新生代，减少老年代GC次数
+
+### 堆溢出处理
+
+* 堆空间不足时，可能抛出内存溢出错误（out of memory）
+
+```bash
+$ java -XX:+HeapDumpOnOutOfMemoryError  # 在内存溢出时，导出整个堆信息
+$ java -XX:HeapDumpPath  # 导出堆的存放路径
+```
+
+## 非堆内存的参数配置 
+
+### 方法区
+
+* 或曰：永久区（JDK1.8 代之以元数据区）
+
+```bash
+$ java -XX:PermSize  # 初始永久区 (JDK1.8 无)
+$ java -XX:MaxPermSize  # 最大永久区 (JDK1.8 无)
+$ java -XX:MaxMetaspaceSize  # 元数据区最大可用值 JDK1.8
+```
+
+* 栈配置
+
+```bash
+$ java -Xss256K  # 配置指定线程的栈大小
+```
+
+### 直接内存配置
+
+* 在 NIO 被广泛使用后，直接内存的使用也更加普遍。直接内存跳过了 JAVA 堆，使 Java 程序可以直接访问原生堆，合理的使用可以在一定程度上加快了内存空间的访问速度 
+* 默认为最大堆空间（-Xmx）。当直接内存使用量达到配置值时，就会触发垃圾回收，若垃圾回收不能释放足够空间时，仍旧会抛出 out-of-memory 错误
+* **适合于申请次数少，访问频繁的场合**
+
+```bash
+$ java -XX:MaxDirectMemorySize  # 最大可用直接内存
+```
+
+## 虚拟机的工作模式
+
+* Client 和 Server 模式
+* Java 虚拟机支持两种运行模式，默认情况当前计算机系统会自动选择合适的运行模式
+* server 模式的启动比较慢，因为其会收集更多的系统性能信息，使用更复杂的优化算法对程序进行优化，稳定之后的 server 模式执行速度会快于 client 模式
+* server 模式适合于后台长期运行的系统。64 位系统中的虚拟机更倾向于使用 **server** 模式
