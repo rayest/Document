@@ -425,3 +425,149 @@ StringBuffer str = new StringBuffer("Hello World");  // 假设在函数体内运
 * `Stop-The-World`
 * 垃圾回收器进行内存清理，为了使垃圾回收高效地执行，大部分情况会要求系统进入短暂的停顿状态，即终止所有应用线程的执行，以避免在垃圾回收过程中新垃圾的产生。即`Stop-The-World(STW)`
 
+# 垃圾收集器和内存分配
+
+* 垃圾回收器类型、特点及使用；对象在内存中的分配和回收
+
+## 串行回收器
+
+* 是指使用单线程进行垃圾回收的回收器。即每次回收时，串行回收器只有一个工作线程
+* 垃圾回收时，Java 应用程序中的线程都要暂停，以等待垃圾回收的完成
+* 可以在新生代和老年代使用
+
+### 新生代串行回收器
+
+* 使用复制算法，大多数情况下性能优异
+
+```bash
+$ java -XX:+UseSerialGC  # 指定使用新生代串行回收器和老年代串行回收器
+```
+
+### 老年代串行回收器
+
+* 使用标记压缩法。在堆空间较大的应用中，GC导致的停顿时间较长
+
+```bash
+$ java -XX:+UseSerialGC  # 新生代、老年代都使用串行回收器
+$ java -XX:+UseParNewGC  # 新生代使用 ParNew 回收器，老年代使用串行回收器
+$ java -XX:+UseParallelGC:  # 新生代使用 ParallelGC 回收器，老年代使用串行回收器 
+```
+
+## 并行回收器
+
+* 多个线程同时进行垃圾回收，适合于并行能力较强的计算机系统
+
+### 新生代 ParNew 回收器
+
+* 工作在新生代的垃圾回收器。只是将串行回收器改为多线程化，其余诸如回收策略、算法和参数与串行回收器一样
+
+```bash
+$ java -XX:+UseParNewGC
+$ java -XX:+UseConcMarkSweepGC  # 新生代使用 ParNew 回收器，老年代使用 CMS
+$ java -XX:ParallelGCThreads  # 指定线程数量，一般设为等于系统 CPU 值
+```
+
+### 新生代 ParallelGC 回收器
+
+* 使用复制算法。与 ParNew 回收器一样。多线程、独占式收集器。但更关注系统吞吐量
+
+```bash
+$ java -XX:+UseParallelGC  # 新生代使用 ParallelGC 回收器，老年代使用串行回收器 
+$ java -XX:+UseParallelOldGC  # 新生代使用 ParallelGC 回收器，老年代使用 ParallelOldGC 回收器
+
+$ java -XX:MaxGCPauseMillis  # 设置最大垃圾收集停顿时间
+$ java -XX:GCTimeRatio  # 设置吞吐量，0 ~ 100
+
+$ java -XX:+UseAdaptiveSizePolicy  # 打开自适应 GC 策略。各参数被系统自动调整为较为合适的状态
+```
+
+### 老年代 ParallelOldGC 回收器
+
+* 标记压缩法、多线程并发、关注吞吐量
+
+## CMS 回收器
+
+* 一心多用。主要关注于系统停顿时间。Concurrent Mark Sweep，使用的是标记清除算法，多线程并行完成垃圾回收
+
+### 工作步骤
+
+* 标记清除算法
+* 初始标记和重新标记是独占系统的，其余步骤是可以和用户线程并发进行的
+* ![image](https://github.com/rayest/Document/raw/master/images/CMS工作流程图.png)
+* 标记：标出需要回收的对象
+* 并发清理：在标记完成之后，正式回收垃圾对象
+* 并发重置：垃圾回收后，重新初始化CMS数据结构和数据
+
+```bash
+$ java -XX:+UseConcMarkSweepGC  # 启用 CMS 垃圾回收器
+$ java -XX:ConcGCThreads  # 设置并发线程数量
+$ java -XX:ParallelCMSThreads  # 设置并发线程数量
+```
+
+* 在 CMS 回收过程中，应用程序还在继续执行，仍会产生新的垃圾对象，其在当前的 CMS 中无法被回收清除。因此，应确保在 CMS 回收过程中，应用程序还有足够的可用内存。所以，可以设置堆内存在使用到一定阈值时，便进行回收，从而确保垃圾回收和应用程序同时运行
+
+```bash
+$ java -XX:CMSInitiatingOccupancyFraction  # 设置CMS回收阈值，默认68。表示老年代空间使用到68%时回收
+```
+
+* 例如：若内存增长缓慢，则可以设置一个稍大的阈值，以降低CMS的触发率；反之，若内存增加很快，则可以降低阈值，以避免频繁触发老年代串行收集器
+* CMS 采取标记清除法，在垃圾回收后，可能产生较多的空间碎片。使得虽然仍有较大的内存空间，但是不连续问题会造成额外不必要的被迫垃圾回收，因此需要在 CMS 之后进行内存压缩
+
+```bash
+$ java -XX:+UseCMSCompactAtFullCollection  # 开启内存压缩整理，在CMS垃圾回收完成之后
+$ java -XX:CMSFullGCsBeforeCompaction  # 设置进行一定次数的CMS回收后，进行一次内存压缩
+```
+
+## G1 回收器
+
+* 属于分代垃圾回收器，区分年轻代和老年代，有 eden 代和 survivor 代
+* 并行性、并发性、分代GC、空间整理( 减少空间碎片)、可预见性（可选取部分区域进行回收）
+
+### G1 内存划分和收集过程
+
+* 内存划分：G1 收集器将堆进行分区，划分为很多个小区域，每次收集时，只收集其中的几个区域
+
+![image](https://github.com/rayest/Document/raw/master/images/G1回收器区域.png)
+
+* 收集过程：新生代 GC、并发标记周期、混合收集、或者可能继续 Full GC
+
+### G1 的新生代 GC
+
+* 主要回收 eden 区和 survivor 区
+* 一旦 eden 区被占满，新生代 GC 即会启动。只回收 eden 和 survivor 区，其中 eden 区被全部回收
+
+### G1 的并发标记周期
+
+* 初始标记：标记从根节点直接可达的对象，应用程序需要停止
+* 跟区域扫描：扫描由 survivor 区直接可达的老年代区域并标记
+* 并发标记：扫描整个堆的存活对象并标记，并回收部分对象
+* 重新标记：应用程序停顿，对并发标记的结果进行修正和补充
+* 独占清理：停顿，计算各个区域的存活对象和GC回收比例，识别可供混合回收的区域
+* 并发清理：识别并清理完全空闲的区域
+
+### 混合回收
+
+* 并发标记阶段清理了一小部分对象。并发标记之后，可以明确哪些区域有较多的垃圾对象。混合回收阶段会优先回收垃圾比例较高的区域
+* 既会执行正常的年轻代 GC，也会选取一些被标记的老年代区域进行回收
+
+### G1 相关参数
+
+```bash
+$ java -XX:+UseG1GC  # 启用 G1 回收器
+$ java -XX:MaxGCPauseMillis  # 最大目标停顿时间
+$ java -XX:ParallelGCThreads  # 并行 GC 的工作线程数
+$ java -XX:InitiatingHeapOccupancyPercent  # 达到设置的整个堆使用率时，触发并发标记周期的执行
+```
+
+## 对象内存分配和回收
+
+### 对象何时进入老年区
+
+* 初创在 eden 区：一般情况，创建的对象会被分配新生代的 eden 区（eden：伊甸园，人类开始居住的地方）。如果没有GC 的介入，该区中的对象不会离开
+* 老年对象进入老年区：对象年龄由对象GC的次数决定，新生代到了一定GC次数即为老年代
+* 大对象进入老年代：对象体积大使得新生代无法容纳该对象，将会直接晋升到老年代
+
+### 在 TLAB 上分配对象
+
+* 线程本地分配缓存，一个线程专用的内存分配区域，是线程的一块私有内存
+* TLAB本身占用eden区空间。默认是开启的。TLAB空间的内存非常小，缺省情况下仅占有整个Eden空间的1%
