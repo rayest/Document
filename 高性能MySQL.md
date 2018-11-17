@@ -600,3 +600,43 @@ FROM t_mysql
 
 * 暂略
 
+# 高级特性
+
+## 分区表
+
+* 是一个独立的逻辑表，底层由多个物理表组成
+* 在创建表时，使用 PARTITION BY 定义每个分区存放的数据。执行查询时，查询可以只扫描分区表
+* 以较粗粒度的方式将数据存储在不同的表中，将相关的数据存放在一起
+* 一个表最多1024个分区，分区表无法使用外键约束
+
+```mysql
+CREATE TABLE sales (
+	order_date DATETIME NOT NULL,
+    ......
+)ENGINE=InnoDB PARTITION BY RANGE (YEAR(order_date))(
+    PARTITION p_2010 VALUES LESS THAN (2010),
+    PARTITION p_2010 VALUES LESS THAN (2011),
+    PARTITION p_2010 VALUES LESS THAN (2012),
+    PARTITION p_catchall VALUES LESS THAN MAXVALUE
+);
+```
+
+* 分区有很多类型，请参考 **《InnoDB 存储引擎》**篇
+
+## 视图
+
+* 虚拟表，由其他表生成
+
+```mysql
+CREATE VIEW Oceania AS SELECT * FROM country WHERE continent = 'Oceania' WITH CHECK OPTION;
+SELECT code, name FROM Oceania WHERE name = 'Australia';
+```
+
+## 外键约束
+
+* 确保两个表的数据一致
+* 使用外键会有额外的开销，额外的锁等待、死锁等问题
+* 通常在程序中确保数据约束的一致性，避免外键带来不可控的一系列问题
+
+# 略之
+
