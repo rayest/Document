@@ -198,4 +198,31 @@
 
 # HTTP 状态码
 
-* 
+* 状态码的第一位制定了响应的类型，后两位无分类，共3位
+
+## 2XX 成功
+
+* 200 OK：GET 或者 HEAD 请求方式
+* 204 No Content：请求成功，但是响应报文中不含实体的主体部分
+* 206 Partial Content：范围请求
+
+## 3XX 重定向
+
+* 301 Moved Permanently：永久性重定向。资源已被分配到了新的 URI
+* 302 Found：临时性重定向。资源已被分配了新的 URI，希望本次使用心得 URI 进行访问
+* 303 See Other：请求的资源存在另一个对应的 URI，应使用 GET 方法获取
+* 307 Temporary Redirect：临时重定向
+
+## 4XX 客户端错误
+
+* 400 Bad Request：客户端请求报文存在语法错误
+* 401 Unauthorized：请求身份认证失败
+* 403 Forbidden：请求资源的访问被拒绝。未获得文件系统的访问权限、IP 未授权等
+* 404 Not Found：服务器找不到请求的资源
+
+## 5XX 服务器错误
+
+* 500 Internal Server Error：服务器端执行时内部发生了错误
+* 503 Service Unavailable：服务器暂时处于超负载或者正在进行停机维护，无法处理请求 
+
+# Web 服务器
