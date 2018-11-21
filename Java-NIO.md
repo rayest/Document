@@ -92,3 +92,82 @@
 
 #### 文件锁定
 
+* 允许一个进程阻止其他进程存取文件，或限制其存取方式。控制共享信息的更新方式，或用于事务隔离
+* 如数据库等复杂应用严重依赖于文件锁定
+* 文件锁定不是单纯指锁定整个文件，甚至可以仅仅只锁定文件中的单个字节或者某一片区域
+* 如数据库的行锁等
+* 两种方式
+  * 共享的：多个共享锁可以同时对同一片区域发生作用
+  * 独占的：要求同一区域不能同时有其他锁定在起作用
+* 经典应用是控制读取的共享文件的更新
+  * 某个进程需要**读取**文件，会先取得该文件或该文件部分区域的**共享锁**，当第二个进程希望**读取**相同文件区域时，也会请求共享锁。二者可以并行读取，互不影响
+  * 当第三个进程需要**更新**该文件，会请求**独占锁**，该进程会停止等待，直到既有的共享锁或者独占锁全部释放
+  * 待进程获得独占锁后，其他读取进程会处于停滞状态，直至独占锁解除
+  * 因此，更新进程可以更新文件，而其他读取进程不会因为文件的更改前后而得到不一致的结果
+
+### 流I/O
+
+* 前述的I/O是面向块的，即数据的移动是通过整块的复制或者缓冲实现的
+* 流 I/O 与之不同。是模仿了通道。I/O 字节流必须顺序存取
+* 通常，流的传输慢于块设备，经常用于间歇性输入
+
+# 缓冲区
+
+## 缓冲区基础
+
+* 缓冲区：是包在一个对象内的基本数据元素**数组**，Buffer 类是将关于数据的数据内容和信息包含在一个单一对象中
+* Java 的 Buffer 类内部其实就是一个基本数据类型的数组
+* 常见的缓冲区如ByteBuffer、IntBuffer、DoubleBuffer ... 内部对应的数组依次是 byte、int、double...
+
+### 属性
+
+* 所有的缓冲区都有**四个属性**，以提供关于其所包含的数据元素的信息
+
+* 容量
+
+  * Capacity：缓冲区能容纳的元素的最大数量，在缓冲区创建时被设定，并且不能改变
+
+  * ```java
+    ByteBuffer bf = ByteBuffer.allocate(10);
+    ```
+
+* 上界
+
+  * Limit：缓冲区中第一个不能读或者写的元素的数组下标索引，也可以认为是缓冲区中实际元素的数量；
+
+* 位置
+
+  * Position：下一个要被读或者写的元素的索引。位置会自动由相应的 get 和 put 函数更新
+
+* 标记
+
+  * Mark：一个备忘位置
+  * 关系：0 <= mark <= position <= limit <= capacity
+
+### 缓冲区 API
+
+* 看一下可以如何使用一个缓冲区。以下是 Buffer 类的方法签名:
+
+```java
+package java.nio;
+
+public abstract class Buffer {
+    public final int capacity();
+    public final int position();
+    public final Buffer position(int newPosition); 
+    public final int limit();
+    public final Buffer limit(int newLimit); 
+    public final Buffer mark();
+    public final Buffer reset();
+    public final Buffer clear();
+    public final Buffer flip();
+    public final Buffer rewind();
+    public final int remaining();
+    public final boolean hasRemaining(); 
+    public abstract boolean isReadOnly(); // 缓冲区都是可读的，并非都可写。标记缓冲区内容是否可被修改
+}
+```
+
+### 存取
+
+* 
