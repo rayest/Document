@@ -1,3 +1,5 @@
+
+
 # 简介
 
 ## I/O 概念
@@ -185,6 +187,96 @@ public abstract class Buffer {
 }
 ```
 
-### 存取
+### 存取：put、get
 
-* 
+* 缓冲区数据的存放和获取，需要通过 `get()` 和 `put()` 方法实现。但是需要 `Buffer` 抽象类的子类实现
+
+```java
+public abstract class ByteBuffer extends Buffer implements Comparable {
+   	public abstract byte get();
+    public abstract byte get (int index);
+    public abstract ByteBuffer put (byte b);
+    public abstract ByteBuffer put (int index, byte b);
+}
+```
+
+### 填充：put
+
+* 示例：将表示 “Hello” 的字符串的 ASCII 码值载入一个名为 byteBuffer 的 ByteBuffer 对象中
+
+```java
+ByteBuffer byteBuffer = ByteBuffer.allocate(10);
+byteBuffer.put((byte) 'H').put((byte) 'e').put((byte) 'l').put((byte) 'l').put((byte) 'o');
+```
+
+![image](https://github.com/rayest/Document/raw/master/images/五次调用put之后的缓冲区.png)
+
+### 翻转：flip
+
+* 将一个能够**继续添加元素**的**填充状态**的缓冲区翻转为一个**准备读取元素**的**释放状态**
+* 可以看作是“改变属性的指针指向”，即 `limit = position, position = 0`
+
+```java
+byteBuffer.flip();
+```
+
+![image](https://github.com/rayest/Document/raw/master/images/翻转后得的缓冲区.png)
+
+* 填充状态：position 指向第一个可填充的位置，limit 指向第一个不可以添加的位置
+* 释放状态：position 指向第一个可读的元素位置，limit 指向第一个不可读的位置
+* 所以两次翻转后，缓冲区大小将变为 0
+
+### 释放：clear
+
+```java
+for (int i = 0; buffer.hasRemaining(), i++) {
+	myByteArray [i] = buffer.get(); 
+}
+// 或者
+int count = buffer.remaining();
+for (int i = 0; i < count, i++) {
+	myByteArray [i] = buffer.get( ); 
+}
+
+public class BufferFillDrain {
+  public static void main(String[] argv) throws Exception {
+    CharBuffer buffer = CharBuffer.allocate(100);
+    while (fillBuffer(buffer)) {
+      buffer.flip();
+      drainBuffer(buffer);
+      buffer.clear();
+    }
+  }
+
+  private static void drainBuffer(CharBuffer buffer) {
+    while (buffer.hasRemaining()) {
+      System.out.print(buffer.get());
+    }
+    System.out.println("");
+  }
+
+  private static boolean fillBuffer(CharBuffer buffer) {
+    if (index >= strings.length) {
+      return (false);
+    }
+    String string = strings[index++];
+    for (int i = 0; i < string.length(); i++) {
+      buffer.put(string.charAt(i));
+    }
+    return (true);
+  }
+
+  private static int index = 0;
+  private static String[] strings = {
+      "A random string value",
+      "The product of an infinite number of monkeys",
+      "Hey hey we're the Monkees",
+      "Opening act for the Monkees: Jimi Hendrix",
+      "'Scuse me while I kiss this fly",
+      "Help Me! Help Me!",
+  };
+}
+```
+
+
+
