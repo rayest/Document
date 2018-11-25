@@ -278,5 +278,308 @@ public class BufferFillDrain {
 }
 ```
 
+# Zero-copy
+
+* 引入：当需要将图片等静态文件显示给用户的时候，需要将该图片内容从磁盘中拷贝到内存缓冲中，然后从内存缓冲中通过socket传输给用户，实现图片的展示。该过程较为低效
+* 4次拷贝：读数据的时候，需要将磁盘中的数据拷贝到内核空间缓冲区，然后再拷贝到用户空间缓冲区；写数据的时候，需要从用户空间缓冲区拷贝到内核空间缓冲区，然后再拷贝到磁盘
+* 数据通过通道 channel 、socket 的方式在内核空间缓冲区和用户空间缓冲区之间移动
+* 4次数据的拷贝，使得数据转移变得复杂在用户态和内核态发生了多次上下文切换。加重了CPU负担
+* 零拷贝：避免CPU将数据从一块存储拷贝到另外一块存储，减少不必要的拷贝
+* 如：Java NIO中的FileChannal.transferTo()方法。绕过用户空间
+* 主要是实现Linux内核底层的设计
+
+# NIO 基础
+
+## 用户空间和内核空间
+
+* 操作系统采用虚拟存储器，对于32位操作系统而言，其寻址空间即虚拟存储空间为4G(2的32次方)
+* 操作系统将虚拟空间分为两部分。内核空间：供内核使用，1G字节；用户空间：供各个进程使用，3G字节。每个进程可以通过系统调用进入内核，内核由所有进程共享。因此，每个进程可以拥有4G字节的虚拟空间
+* 内核空间：存放着的是内核代码和数据；用户空间存放的是用户程序的代码和数据。他们都处于虚拟空间中
+
+## Linux 网络 I/O 模型
+
+* 进程无法直接操作I/O设备，必须通过系统调用请求内核来协助完成，内核会为每个I/O设备维护一个buffer
+* 过程：用户进程发起请求，内核接收请求后，从I/O设备中获取数据到buffer中，再将buffer中的数据copy到用户空间
+* 注意两点：等待数据准备、将数据从内核拷贝到进程中
+* 此中：数据输入到buffer以及从buffer复制数据到用户空间，两阶段数据的移动速度可能不一致。因此有五中IO模式：
+  * 阻塞I/O：Linux 默认所有的socket都是阻塞的。即内核接收到系统调用通知、先等待数据准备、再复制数据到用户空间，复制完成之后，返回成功消息。在此过程中，用户进程一直处于阻塞状态，直到接收到内核返回的结果
+  * 非阻塞I/O：当用户进程进行系统调用的时候，会轮询内核空间，以确定其是否准备好了某些操作。用户进程可以立刻得到内核的响应，如果还未准备好，用户进程可以继续其他的任务；如果准备好了数据，并且再次收到了用户进程的系统调用命令，则将数据拷贝到用户空间，此时用户进程就可以继续处理该业务
+  * I/O复用：先略
+  * 信号驱动的I/O：先略
+  * 异步I/O：告诉内核启动操作并且在整个操作完成时通知我们。即用户进程向内核发起某个操作后，会立即得到返回，并把所有的任务都交给内核去处理，内核完成后，只需要返回一个信号告诉用户进程
+
+## Java NIO
+
+### 概述
+
+* NIO 三大核心：Channel 通道、Buffer 缓冲、Selector 选择器
+* 传统 IO 是基于字节流和字符的。即每次从流中读取一个或者多个字节，直至读取所有字节，没有缓存在任何地方。也不能前后移动流中的数据，如果需要的话，需要先移动到一个缓冲区
+* 而 NIO 是基于 Channel 和 Buffer进行的。即数据总是从通道读取到缓冲区，或者从缓冲区写入到通道中。Selector 用于监听多个通道的事件
+* IO 各种流是阻塞的。NIO 是非阻塞的，线程通过通道请求数据时，如果目前没有可用数据，线程不会阻塞，转而做其他事情，直到有数据可用时，继续处理刚才的请求。非阻塞写也是如此
+* Channel
+  * 与 IO 中的 Stream 流差不多是同一个等级的。Stream 是单向的，InputStream、OutputStream等
+  * channel 是双向的，即既可以用于读操作，也可用于写操作
+  * 有 FileChannel、DatagramChannel、SocketChannel、SocketServerChannel，分别对应于文件IO、UDP和TCP
+* Buffer
+  * 有 ByteBuffer, CharBuffer, DoubleBuffer, FloatBuffer, IntBuffer, LongBuffer, ShortBuffer 等
+* Selector
+  * Selector 运行单线程处理多个 Channel 
+
+### FileChannel
+
+* 传统 IO vs NIO
+  * 传统 IO 采用 FileInputStream 读取文件内容
+
+```java
+public static void method2(){
+    InputStream in = null;
+    try{
+        in = new BufferedInputStream(new FileInputStream("src/nomal_io.txt"));
+        byte [] buf = new byte[1024];
+        int bytesRead = in.read(buf);
+        while(bytesRead != -1){
+            for(int i = 0; i < bytesRead; i++)
+            System.out.print((char)buf[i]);
+            bytesRead = in.read(buf);
+        }
+    }catch (IOException e){
+        e.printStackTrace();
+    }finally{
+        try{
+            if(in != null){
+                in.close();
+             }
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+* 使用 NIO 处理相同的操作，实现方式复杂
+
+```java
+  public static void method1(){
+      RandomAccessFile aFile = null;
+      try{
+          aFile = new RandomAccessFile("src/nio.txt","rw");
+          FileChannel fileChannel = aFile.getChannel();
+          ByteBuffer buf = ByteBuffer.allocate(1024);
+          int bytesRead = fileChannel.read(buf);
+          System.out.println(bytesRead);
+          while(bytesRead != -1){
+              buf.flip();
+              while(buf.hasRemaining()){
+                  System.out.print((char)buf.get());
+              }
+              buf.compact();
+              bytesRead = fileChannel.read(buf);
+          }
+      }catch (IOException e){
+          e.printStackTrace();
+      }finally{
+          try{
+              if(aFile != null){
+                  aFile.close();
+              }
+          }catch (IOException e){
+              e.printStackTrace();
+          }
+      }
+  }
+```
+
+* Buffer 的使用
+  * buffer 缓冲区，实际上是一个容器，一个连续数组。读写的数据都要经过 buffer
+  * 一般连续的步骤：分配空间 allocate、写入到 buffer 、调用 flip、从 buffer 读取、调用 clear 或者 compact 方法
+  * get、put 实现读取和写数据
+  * clear 方法：将 position 置为0，limit 置为 capacity，即 buffer 被清空了。但是，buffer 中的数据并未被清除。只是这些标记告诉我们可以从哪开始往 buffer 中写入数据
+  * compact 方法：将所有未读的数据拷贝到 buffer 起始处，然后将 position 调到最后一个未读元素的后面
+
+### SocketChannel
+
+* 
+* NIO的channel抽象的一个重要特征就是可以通过配置它的阻塞行为，以实现非阻塞式的信道
+
+```java
+channel.configureBlocking(false)
+```
+
+* 在非阻塞式信道上调用一个方法总是会立即返回，这种调用的返回值指示了所请求的操作完成的程度
+
+```java
+// NIO 
+public static void client(){
+     ByteBuffer buffer = ByteBuffer.allocate(1024);
+     SocketChannel socketChannel = null;
+     try{
+         socketChannel = SocketChannel.open();
+         socketChannel.configureBlocking(false);
+         socketChannel.connect(new InetSocketAddress("10.10.195.115",8080));
+         if(socketChannel.finishConnect()){
+             int i = 0;
+             while(true){
+                 TimeUnit.SECONDS.sleep(1);
+                 String info = "I'm "+ i++ +"-th information from client";
+                 buffer.clear();
+                 buffer.put(info.getBytes());
+                 buffer.flip();
+                 while(buffer.hasRemaining()){
+                     System.out.println(buffer);
+                     socketChannel.write(buffer);
+                 }
+             }
+         }
+     }catch (IOException | InterruptedException e){
+         e.printStackTrace();
+     }finally{
+         try{
+             if(socketChannel!=null){
+                 socketChannel.close();
+             }
+         }catch(IOException e){
+             e.printStackTrace();
+         }
+     }
+ }
+
+// BIO
+public static void server() {
+    ServerSocket serverSocket = null;
+    InputStream in = null;
+    try {
+      serverSocket = new ServerSocket(8080);
+      int recvMsgSize = 0;
+      byte[] recvBuf = new byte[1024];
+      while (true) {
+        Socket clntSocket = serverSocket.accept();
+        SocketAddress clientAddress = clntSocket.getRemoteSocketAddress();
+        System.out.println("Handling client at " + clientAddress);
+        in = clntSocket.getInputStream();
+        while ((recvMsgSize = in.read(recvBuf)) != -1) {
+          byte[] temp = new byte[recvMsgSize];
+          System.arraycopy(recvBuf, 0, temp, 0, recvMsgSize);
+          System.out.println(new String(temp));
+        }
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    } finally {
+      try {
+        if (serverSocket != null) {
+          serverSocket.close();
+        }
+        if (in != null) {
+          in.close();
+        }
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+  }
+
+```
+
+### TCP 服务端的NIO
+
+* 一个 Selector 实例可以同时检查一组通道的 I/O 状态，管理多个通道上的I/O操作
+* 当一个通道有I/O操作的时候，会通知 Selector，Selector 会记住该通道的操作，而不是通过 Selector 主动轮询通道
+
+```java
+public class ServerConnect {
+    private static final int BUF_SIZE = 1024;
+    private static final int PORT = 8080;
+    private static final int TIMEOUT = 3000;
+
+    public static void main(String[] args) {
+      selector();
+    }
+
+    public static void handleAccept(SelectionKey key) throws IOException {
+      ServerSocketChannel ssChannel = (ServerSocketChannel) key.channel();
+      SocketChannel sc = ssChannel.accept();
+      sc.configureBlocking(false);
+      sc.register(key.selector(), SelectionKey.OP_READ, ByteBuffer.allocateDirect(BUF_SIZE));
+    }
+
+    public static void handleRead(SelectionKey key) throws IOException {
+      SocketChannel sc = (SocketChannel) key.channel();
+      ByteBuffer buf = (ByteBuffer) key.attachment();
+      long bytesRead = sc.read(buf);
+      while (bytesRead > 0) {
+        buf.flip();
+        while (buf.hasRemaining()) {
+          System.out.print((char) buf.get());
+        }
+        System.out.println();
+        buf.clear();
+        bytesRead = sc.read(buf);
+      }
+      if (bytesRead == -1) {
+        sc.close();
+      }
+    }
+
+    public static void handleWrite(SelectionKey key) throws IOException {
+      ByteBuffer buf = (ByteBuffer) key.attachment();
+      buf.flip();
+      SocketChannel sc = (SocketChannel) key.channel();
+      while (buf.hasRemaining()) {
+        sc.write(buf);
+      }
+      buf.compact();
+    }
+
+    public static void selector() {
+      Selector selector = null;
+      ServerSocketChannel ssc = null;
+      try {
+        selector = Selector.open();
+        ssc = ServerSocketChannel.open();
+        ssc.socket().bind(new InetSocketAddress(PORT));
+        ssc.configureBlocking(false);
+        ssc.register(selector, SelectionKey.OP_ACCEPT);
+        while (true) {
+          if (selector.select(TIMEOUT) == 0) {
+            System.out.println("==");
+            continue;
+          }
+          Iterator<SelectionKey> iter = selector.selectedKeys().iterator();
+          while (iter.hasNext()) {
+            SelectionKey key = iter.next();
+            if (key.isAcceptable()) {
+              handleAccept(key);
+            }
+            if (key.isReadable()) {
+              handleRead(key);
+            }
+            if (key.isWritable() && key.isValid()) {
+              handleWrite(key);
+            }
+            if (key.isConnectable()) {
+              System.out.println("isConnectable = true");
+            }
+            iter.remove();
+          }
+        }
+      } catch (IOException e) {
+        e.printStackTrace();
+      } finally {
+        try {
+          if (selector != null) {
+            selector.close();
+          }
+          if (ssc != null) {
+            ssc.close();
+          }
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+      }
+    }
+  }
+```
 
 
+
+* 得的
