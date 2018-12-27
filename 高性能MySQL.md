@@ -640,3 +640,24 @@ SELECT code, name FROM Oceania WHERE name = 'Australia';
 
 # 略之
 
+# MySQL 记录
+
+### where 和左右连接
+
+> 在查询语句中，同时使用 where 和 left join / right join 时，mysql 执行器首先执行连接操作，然后再在该操作结果集中，执行 where 语句进行条件过滤。如：
+
+```mysql
+SELECT 
+t_route.code AS routeCode, 
+t_route.name AS routeName, 
+t_compus.branch_code AS branchCode, 
+t_compus.branch_Name AS branchName, 
+t_card.card_no AS cardNo, 
+date_format(t_card.issue_at, '%Y-%m-%d %H:%i:%S') as issueTime 
+FROM t_route 
+LEFT JOIN t_compus ON t_compus.branch_code = t_route.branch_code 
+LEFT JOIN t_route_price ON t_route_price.route_id = t_route.id 
+LEFT JOIN t_card ON t_route_price.id = t_card.route_price_id 
+WHERE t_card.status = '0'
+```
+
