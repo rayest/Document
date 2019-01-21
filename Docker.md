@@ -163,7 +163,7 @@
 
 * 使用 -d 参数时，容器启动后进入后台
 * 当需要对容器进行操作的时候，可以使用 `docker exec`
-* `docker run -dit ubuntu 
+* `docker run -dit ubuntu` 
 * `docker container ls`
 * `docker exec -it [ID] bash`
 
@@ -295,15 +295,15 @@
 > `services:`
 >
 >     `webapp:`
->    
+>        
 >      `image:example/web`
->    
+>        
 >        `ports:`
->    
+>        
 >          `- "80:80"`
->    
+>        
 >      `volumes:`
->    
+>        
 >           `- "/data"`	
 
 * 每个服务必须通过 image 指令指定镜像或者 build 指令（dockerfile）等来自动构建生成镜像
