@@ -294,17 +294,18 @@
 >
 > `services:`
 >
->     `webapp:`
->        
->      `image:example/web`
->        
->        `ports:`
->        
->          `- "80:80"`
->        
->      `volumes:`
->        
->           `- "/data"`	
+>  `webapp:`
+>     
+>   `image:example/web`
+>     
+>     `ports:`
+>     
+>       `- "80:80"`
+>
+>   `volumes:`
+>     
+>
+>        `- "/data"`	
 
 * 每个服务必须通过 image 指令指定镜像或者 build 指令（dockerfile）等来自动构建生成镜像
 * build 指令：使用此指令在 Dockerfile 文件中设置的选项（CMD、EXPOSE、VOLUME、ENV）将会自动被获取，无需要在 docker-compose.yml 文件中重复设置
@@ -394,4 +395,20 @@
 # Linux 虚拟网络
 
 * namespace、veth pair、bridge 说明和命令
+
+# 实战
+
+```shell
+# 运行一个容器，并将其连接到另一个容器：redis-master；并指定将容器的 /usr/src/app 目录挂载到宿主机的 ~/Projects/Django/App1 目录下。之后二者的数据将同步变更
+$ docker run -it --name APP1 --link redis-master:db -v ~/Projects/Django/App1:/usr/src/app django /bin/bash
+
+# 查看容器
+$ docker inspect CONTAINER_ID
+
+# 查看容器的挂载目录
+$ docker inspect CONTAINER_ID | grep Source
+
+# 如果不指定容器挂载目录，则会在宿主机 /var/lib/docker/volumes 下随机分配一个挂载目录
+$ docker run -it --name redis-master redis /bin/bash
+```
 
