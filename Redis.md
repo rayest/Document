@@ -8,15 +8,13 @@
 
 * 示例
 
-  `struct sdshdr {`
-
-  	`int len;`
-		
-  	`int free;`
-		
-  	`char buf[]`
-
-  `}`
+  ```c
+  struct sdshdr {
+      int len;
+      int free;
+      char buf[]
+  }
+  ```
 
 * SDS 以空字符结尾‘\0’，但是不计入 SDS 的 len 属性中，分配额外的 1 字节空间
 
@@ -54,28 +52,20 @@
 
 ## 链表和链表节点的实现
 
-  `typedef struct listNode {`
-
-  	`struct listNode *prev;`
-
-  	`struct listNode *next;`
-
-  	`void *value`;
-
-  `}`
-
-`typedef struct list{`
-
-	`listNode *head;`
-	
-	`listNode *tail;`
-	
-	`unsigned long len`；
-	
-	`……`
-
-`}`
-
+  ```c 
+typedef struct listNode {
+  	struct listNode *prev;
+  	struct listNode *next;
+  	void *value;
+  }
+  ```
+```c
+typedef struct list{
+	listNode *head;
+	listNode *tail;
+	unsigned long len;
+}
+```
 * 多个 listNode 通过 prev 和 Next 指针实现双端链表
 * listNode 中 value 属性记录了节点的值
 * 链表由 list 结构和 listNode 结构组成
@@ -90,17 +80,14 @@
 
 ### 哈希表
 
-`typedef struct dictht{`
-
-	`dictEntry **table;`
-	
-	`unsigned long size;`
-	
-	`unsigned long sizemask;`
-	
-	`unsigned long used;`
-
-`}`
+```c
+typedef struct dictht {
+    dictEntry **table;
+	unsigned long size;
+	unsigned long sizemask;
+	unsigned long used;`
+}
+```
 
 * 每一个哈希表中可以有多个哈希表节点，每一个哈希表节点保存了字典中的一个键值对
 * table 属性是一个数组，数组中的每个元素都是 dictEntry 结构的指针
@@ -111,15 +98,13 @@
 
 ### 哈希表节点
 
-`typedef struct dictEntry {`
-
-	`void *key;`
-	
-	  `union {`值`} value;`
-	
-	`struct dictEntry *next`
-
-`}`
+````c
+typedef struct dictEntry{
+    void *key;
+  	union {值} value;
+	struct dictEntry *next;
+}
+````
 
 * key 是键
 * value 是值
@@ -459,4 +444,3 @@
 * 分为定时事件和周期性事件
 * 所有的时间事件都被放在一个无序链表中，当时间事件执行器运行时，遍历整个链表，查找已经到达的时间事件，调用相应的事件处理器进行处理
 * 无序是指事件的排序不是按照时间进行排序的，在时间上是无序的
-
