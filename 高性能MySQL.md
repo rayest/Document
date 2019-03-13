@@ -322,7 +322,7 @@
     * 哈希索引只包含哈希值和行指针，并不存储字段值
     * 哈希索引的数据并不是按照索引值顺序存储的
     * 不支持部分索引列匹配查找，如有两个索引时，但只使用其中之一，则无法使用该索引
-    * 只支持等值比较查询，也不支持范围查找
+    * **只支持等值比较查询，也不支持范围查找**
     * 哈希冲突时，索引的维护代价较高
 
   * InnoDB 有一个特殊的功能，叫做自适应哈希索引，在适时的情况下，让B-Tree索引也具有哈希索引的一些优点。完全自动、内部的行为，用户无法配置和操作，可以关闭
@@ -375,7 +375,7 @@ CREATE TABLE t(
 * 大部分情况下，在多个列上建立独立的单列索引并不能提高 MYSQL 的查询性能
 
 ```mysql
-SELECT a, b from t where a = 1 OR b =1; # mysql 会优化类似的复杂查询
+SELECT a, b from t where a = 1 OR b = 1; # mysql 会优化类似的复杂查询
 ```
 
 * 有多个索引做相交操作时`(通常有多个AND)`，需要建立一个包含所有相关列的多列索引，而非建立独立的单列索引
@@ -387,9 +387,9 @@ SELECT a, b from t where a = 1 OR b =1; # mysql 会优化类似的复杂查询
 * 经验法则：将选择性高的列放到索引最前列
 
 ```mysql
-SELECT a, b from t where a = 1 AND b =1;  # 应该建一个(a,b)索引，如果a的选择性较高的话
+SELECT a, b, c from t where a = 1 AND b =1 and c = 1;  # 应该建一个(a,b,c)索引，若a的选择性较高
 
-ALTER TABLE t ADD KEY(a, b);  # 根据选择性创建多列索引
+ALTER TABLE t ADD KEY(a, b，c);  # 根据选择性创建多列索引。相当于建立了(a)、(a,b)、(a,b,c) 三个索引
 ```
 
 ### 聚簇索引
@@ -587,13 +587,15 @@ FROM t WHERE id <= 5;  # 优化后仅会扫描5行以内
 ### 优化 LIMIT 分页
 
 ```mysql
-SELECT id, coupon_id, user_id FROM t_mysql ORDER BY user_id LIMIT 50, 5;  # 优化前。可能会扫描很多行，选取其中5行数据
+# 优化前。可能会扫描很多行，选取其中5行数据
+SELECT id, coupon_id, user_id FROM t_mysql ORDER BY user_id LIMIT 50, 5;  
 
+# 优化后。延迟关联，大大提升查询效率。先获取需要返回的记录后再回表关联需要的列
 SELECT id, coupon_id, user_id
 FROM t_mysql
   INNER JOIN (
     SELECT id FROM t_mysql ORDER BY user_id LIMIT 50, 5
-) AS lim USING (id);   # 优化后。延迟关联，大大提升查询效率。先获取需要返回的记录后再回表关联需要的列。
+) AS lim USING (id);   
 ```
 
 
@@ -638,7 +640,76 @@ SELECT code, name FROM Oceania WHERE name = 'Australia';
 * 使用外键会有额外的开销，额外的锁等待、死锁等问题
 * 通常在程序中确保数据约束的一致性，避免外键带来不可控的一系列问题
 
-# 略之
+# 锁
+
+## MySQL 锁
+
+* 行级锁：开销大，加锁慢；会出现死锁；锁定粒度最小，发生锁冲突的概率最低，并发度也最高
+* 表级锁：开销小，加锁快；不会出现死锁；锁定粒度大，发生锁冲突的概率最高，并发度最低
+* 页面锁：开销和加锁时间界于表锁和行锁之间；会出现死锁；锁定粒度界于表锁和行锁之间，并发度一般
+
+## 锁算法
+
+* 临键锁：Next-Key Locks 锁，同时锁住记录(数据)，并且锁住记录前面的 Gap 
+  * 在根据`非唯一索引` 对记录行进行 `UPDATE、FOR UPDATE、LOCK IN SHARE MODE` 操作时，InnoDB 会获取该记录行的 `临键锁` ，并同时获取该记录行下一个区间的`间隙锁` 
+  * 锁定一段`左开右闭`的索引区间  
+* 间隙锁：Gap 锁，不锁记录，仅仅记录前面的 Gap
+  * **间隙锁**基于`非唯一索引`
+* 记录锁：Record Lock 锁（锁数据，不锁 Gap）
+  * 在通过 `主键索引` 与 `唯一索引` 对数据行进行 UPDATE 操作时，也会对该行数据加`记录锁`
+  * **SELECT** * **FROM** **table** **WHERE** **id** = 1 **FOR** **UPDATE**; id` 列必须为`唯一索引列`或`主键列`，否则上述语句加的锁就会变成`临键锁
+  * 查询语句必须为`精准匹配`（`=`），不能为 `>`、`<`、`like`等，否则也会退化成`临键锁`
+* 所以其实 Next-KeyLocks = Gap 锁 + Recordlock 锁
+
+```mysql
+# 示例。表
+id		age		name
+1		10		Lee 
+3		24		Lay
+5		32		Luis
+7		45		Lily
+
+# 潜在的临键锁。左开右闭
+(-∞, 10],
+(10, 24],
+(24, 32],
+(32, 45],
+(45, +∞],
+ 
+# 根据非唯一索引列 UPDATE 某条记录
+UPDATE table SET name = Vladimir WHERE age = 24;
+
+# 或根据非唯一索引列 锁住某条记录
+SELECT * FROM table WHERE age = 24 FOR UPDATE;
+
+# 最终被锁住的记录区间为 (10, 32)
+```
+
+
+
+## 死锁
+
+* 两个(或以上)的 session 加锁的顺序不一致
+
+```mysql
+# 开启多个会话，执行相同操作，很快会发生死锁
+select * from xxx where id = '随机id' for update;
+
+# 锁住固定的 id 范围，可以避免死锁
+select * from xxx where id in (xx,xx,xx) for update;
+
+# session1：锁住 id 为 8 和 9 的行
+select * from t3 where id in (8,9) for update;
+
+# session2：id = 10 未被锁住，从 id = 8 开始被锁住，锁在此等待
+select * from t3 where id in (10,8,5) for update;
+
+# session3：锁等待
+select * from t3 where id = 5 for update;
+```
+
+* 当对**存在的行**进行锁的时候(主键)，mysql就只有**行锁**
+* 当对**未存在的行**进行锁的时候(即使条件为主键)，mysql 是会锁住一段范围（**gap锁**）
 
 # MySQL 记录
 
@@ -661,3 +732,77 @@ LEFT JOIN t_card ON t_route_price.id = t_card.route_price_id
 WHERE t_card.status = '0'
 ```
 
+### 索引示例
+
+```mysql
+# 不会使用索引,因为所有索引列参与了计算
+SELECT `sname` FROM `stu` WHERE `age` + 10 = 30;
+
+# 不会使用索引,因为使用了函数运算,原理与上面相同
+SELECT `sname` FROM `stu` WHERE LEFT(`date`,4) < 1990; 
+
+# 走索引
+SELECT * FROM `houdunwang` WHERE `uname` LIKE'后盾%';
+
+# 不走索引
+SELECT * FROM `houdunwang` WHERE `uname` LIKE "%后盾%"; 
+
+# 正则表达式不使用索引,这应该很好理解,所以为什么在SQL中很难看到regexp关键字的原因
+
+# 字符串与数字比较不使用索引;
+CREATE TABLE `a` (`a` char(10));
+EXPLAIN SELECT * FROM `a` WHERE `a`="1" -- 走索引
+EXPLAIN SELECT * FROM `a` WHERE `a`=1 -- 不走索引
+
+# 如果条件中有 or,即使其中有条件带索引也不会使用。换言之,就是要求使用的所有字段,都必须建立索引
+# 建议尽量避免使用 or 关键字。而 and 会使用索引
+select * from dept where deptno = 45 and dname='xxx' or loc='xx'; 
+
+# 如果mysql估计使用全表扫描要比使用索引快,则不使用索引
+```
+
+### 使用索引技巧
+
+* 索引不会包含有NULL的列
+  * 只要列中包含有NULL值，都将不会被包含在索引中，复合索引中只要有一列含有NULL值，那么这一列对于此符合索引就是无效的
+* 使用短索引
+  * 对串列进行索引，如果可以就应该指定一个前缀长度。例如，如果有一个char（255）的列，如果在前10个或20个字符内，多数值是唯一的，那么就不要对整个列进行索引。短索引不仅可以提高查询速度而且可以节省磁盘空间和I/O操作。
+* 索引列排序
+  * **mysql 查询只使用一个索引**，因此如果 **where 子句中已经使用了索引**的话，那么**order by中的列是不会使用索引**的。因此数据库默认排序可以符合要求的情况下**不要使用排序操作**，尽量不要包含多个列的排序，如果需要最好给这些列建**复合索引**。
+* like语句操作
+  * 一般情况下不鼓励使用like操作，如果非使用不可，注意正确的使用方式。like ‘%aaa%’不会使用索引，而like ‘aaa%’可以使用索引。
+* 不要在列上进行运算和使用函数
+* 不使用 NOT IN 、<>、!= 操作，但<、<=、=、>、>=、 BETWEEN、IN 是可以用到索引的
+* 索引要建立在经常进行select操作的字段上。
+  * 这是因为，如果这些列很少用到，那么有无索引并不能明显改变查询速度。相反，由于增加了索引，反而降低了系统的维护速度和增大了空间需求。
+* 索引要建立在值比较唯一的字段上。
+* 对于那些定义为text、image和bit数据类型的列不应该增加索引。因为这些列的数据量要么相当大，要么取值很少。
+* 在where和join中出现的列需要建立索引。
+* 在join操作中(需要从多个数据表提取数据时)，mysql只有在**主键和外键的数据类型相同**时才能使用索引，否则即使建立了索引也不会使用。
+
+## mysql 分库分表
+
+* 分表
+ ```javascript
+如：用户表分表。通过算法 userId % 256，得到的余数，0 ~ 255，即可以将不同ID的用户分到 256 个不同的表中
+ ```
+
+* 分库
+
+```javascript
+如：用户表分库。算法可以同上
+```
+
+* 分库分表
+
+```javascript
+1. 中间变量 = user_id % (分库数量 * 每个库的表数量)
+2. 库 = 取整数 (中间变量 / 每个库的表数量)
+3. 表 = 中间变量 % 每个库的表数量
+```
+### 分库分表的问题
+
+* 表关联问题：设计时避免多表关联
+* 分页与排序问题：分别将分库或者分表查询出的结果，在代码层再次进行汇总和排序
+* 分布式事务中数据一致性：
+* 分布式全局唯一ID：使用数据库自增特性无法满足要求。需要使用全局唯一ID设计

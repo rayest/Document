@@ -100,7 +100,18 @@
 
 ### Join 和 yield
 
-* `join() 和 join(long millis)`：一个线程的输入依赖于另一个线程的输出，需要等到依赖线程的执行完毕，才继续执行
+* `join() 和 join(long millis)`：一个线程的输入依赖于另一个线程的输出，需要等到依赖线程的执行完毕，才继续执行，如：
+
+```java
+public static void main(string[] args) {
+    System.out.println("开始执行 main 主线程");
+    Thread t1 = new Thread();
+    t1.start(); //  在主线程中启动子线程
+    t1.join(); // 主线程需要等待子线程执行完再继续执行
+    System.out.println("继续执行 main 主线程");
+}
+```
+
 * 一个线程加入另一个线程，如主线程中加入了一个新线程
 * `join` 的本质是让调用线程`wait`在当前线程对象实例上
 * `yield()`方法被执行后，会使当前线程让出 CPU，之后还会进行 CPU 的争夺
@@ -216,11 +227,15 @@ public Semaphore(int permits, boolean fair); // 是否公平
 ### 倒计时器：CountDownLatch
 
 * 门栓。锁住线程，用于控制线程等待，让某一个线程等待直到倒计时器结束，再开始继续执行
+* **强调一个线程等n个线程完成某件事情。而 CyclicBarrier 是多个线程互等，等大家都完成**
+* 如：裁判线程等待运动员线程都跑到终点，统计排名
 
 ### 循环栅栏：CyclicBarrier
 
 * 与 countDownLatch 类似，用于实现线程间的计数等待
 * 栅栏即障碍物，阻止线程继续执行；循环即为该计时器可以反复使用
+* **强调的是n个线程，大家相互等待，只要有一个没完成，所有人都得等着**
+* 如：n个羊线程，都到齐了，再一起出去吃草
 
 ### 线程阻塞工具类：LockSupport
 
@@ -237,7 +252,7 @@ public Semaphore(int permits, boolean fair); // 是否公平
   * 当需要关闭连接时，并不真的将连接关闭，而是将该连接归还给连接池
   * 节约了创建和销毁的时间
 * 线程池亦如是
-* `newFIxedThreadPool()`
+* `newFixedThreadPool()`
   * 返回固定线程数量的线程池，线程池中的数量始终不变
   * 当有一个新的任务提交时，若线程池中有空闲的线程，则立即执行
   * 若没有，新任务会被暂存在一个任务列表中，待有空闲线程时，再处理任务列表中的任务
@@ -294,6 +309,11 @@ public Semaphore(int permits, boolean fair); // 是否公平
 # 锁的优化
 
 * 避免死锁、减小锁粒度、锁分离
+
+## 悲观锁和乐观锁
+
+* 悲观锁和乐观锁是一种设计思想，而不是一种实在锁。悲观锁认为资源总会被占用，乐观锁则认为资源基本不会被抢占。MySQL 实现悲观锁是在查询语句末尾添加 FOR UPDATE；乐观锁则是通过为记录添加版本 version 等字段进行控制，读取 -> 比较 -> 写（CAS）。JAVA 实现悲观锁就是 sync 同步，乐观锁就是原子类（内部通过CAS实现）
+* 乐观锁：认为读多写少
 
 ## 提高锁性能
 
