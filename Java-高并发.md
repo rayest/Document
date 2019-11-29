@@ -483,4 +483,21 @@ public Semaphore(int permits, boolean fair); // 是否公平
 
 * 程序出现异常时，锁会被释放 --> 要注意异常的处理。catch 住可以不释放锁
 * volatile 只能保证可见性，synchronized 既保证了可见性和原子性
-* 
+
+# 各个击破之 JUC
+
+> 代码参考 concurrency 仓库
+
+## lock
+
+### LockSupport
+
+1. LockSupport 类可以阻塞当前线程以及唤醒指定被阻塞的线程
+2. 主要是通过 park() 和 unpark(thread) 方法来实现
+3. 每个线程都有一个许可(permit)，permit 只有两个值 1 和 0，默认是 0
+   1. 当调用 unpark(thread) 方法，就会将线程的许可 permit 设置成1(注意多次调用 unpark 方法，不会累加，permit 值还是1)。
+   2. 当调用 park() 方法，如果当前线程的 permit 是 1，那么将 permit 设置为 0，并立即返回。如果当前线程的 permit 是0，那么当前线程就会阻塞，直到别的线程将当前线程的 permit 设置为 1。park 方法会将 permit 再次设置为 0，并返回。
+
+### ReentrantLock
+
+1. 
