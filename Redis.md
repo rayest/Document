@@ -456,7 +456,7 @@ typedef struct dictEntry{
 * **allkeys-random**：从数据集（server.db[i].dict）中任意选择数据淘汰
 * **no-enviction**（驱逐）：禁止驱逐数据
 
-## 高频知识点
+## 分布式锁
 * 如何在高并发中使用 redis
 ```java
 @Service
@@ -493,4 +493,15 @@ lock.lock(10, time);
 
 > 3. 但是在主从架构中，redis 的 slave 副本是需要复制 master 主节点数据的。当 master 获取到应用线程A的锁且还未来得及被 slave 同步数据时，突然宕机。此时的 slave 有机会升为 master 节点，但是却并未及时同步到之前的锁，应用线程B会停止阻塞状态以获取锁，就会破坏分布式锁的实现，导致不一致
 > 4. 因此可使用 redLock 或者 更建议使用 zookeeper 实现分布式锁
+
+## 主从复制
+
+> 1. Master 和 slave：主节点负责写和从节点负责读，从节点需要向主节点复制数据，保持同步
+> 2. 主从之间的通信，可以通过客户端命令实现。如 slaveof ip port ；ping
+
+## setinel 哨兵
+
+> 1. 哨兵：是一个分布式系统也是redis服务器，通常设为单数台。主要的作用是监控每台服务器，当发生故障的时候，发起投票选举新的 master，并将其余的 slave 重新连接的该新的 master。
+>
+> 2. 监控、通知、故障自动转移。
 
