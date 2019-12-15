@@ -1,10 +1,10 @@
-# 简单动态字符串
+## 简单动态字符串
 
 > simple dynamic string ：SDS。Redis 默认的字符串表示。
 >
 > 保存数据库中的字符串值、作为缓冲区(AOF 缓冲)、客户端状态的输入缓冲区
 
-## 定义
+### 定义
 
 * 示例
 
@@ -18,14 +18,12 @@
 
 * SDS 以空字符结尾‘\0’，但是不计入 SDS 的 len 属性中，分配额外的 1 字节空间
 
-## SDS 与 C 字符串的区别
+### SDS 与 C 字符串的区别
 
-### 获取字符串长度
+* 获取字符串长度
+> SDS 可以通过 len 属性直接获取，O(1)
 
-* SDS 可以通过 len 属性直接获取，O(1)
-
-### 杜绝缓冲区溢出
-
+* 杜绝缓冲区溢出
 * SDS 的空间分配策略杜绝了发生缓冲区溢出的问题
 
 * 当 SDS API 对 SDS 进行修改时，API 先检查 SDS 空间是否满足修改所需的要求。如果不满足，则自动将 SDS 的空间扩展至所需要的大小，再执行修改操作
@@ -48,9 +46,9 @@
     * 当字符串执行缩短操作时，程序并不立即释放未使用的空间，而是通过 free 属性记录未使用的空间，并等将来使用
     * 在真正需要的时候，通过 SDS API 释放这些未使用的空间
 
-# 链表
+## 链表
 
-## 链表和链表节点的实现
+### 链表和链表节点的实现
 
   ```c 
 typedef struct listNode {
@@ -74,11 +72,11 @@ typedef struct list{
 * list 结构的 len 属性记录了链表的长度，listNode 的数量
 * 链表的头结点 prev 指针和尾节点 Next 指针都指向 null，表示访问终点
 
-# 字典
+## 字典
 
-## 实现
+### 实现
 
-### 哈希表
+* 哈希表
 
 ```c
 typedef struct dictht {
@@ -449,7 +447,7 @@ typedef struct dictEntry{
 
 * redis 是单线程的
 
-## 数据淘汰策略
+## 6种数据淘汰策略
 
 * **volatile-lru**：从已设置过期时间的数据集（server.db[i].expires）中挑选最近**最少使用**的数据淘汰
 * **volatile-ttl**：从已设置过期时间的数据集（server.db[i].expires）中挑选**将要过期**的数据淘汰
@@ -457,3 +455,42 @@ typedef struct dictEntry{
 * **allkeys-lru**：从数据集（server.db[i].dict）中挑选最近最少使用的数据淘汰
 * **allkeys-random**：从数据集（server.db[i].dict）中任意选择数据淘汰
 * **no-enviction**（驱逐）：禁止驱逐数据
+
+## 高频知识点
+* 如何在高并发中使用 redis
+```java
+@Service
+public class Main {
+
+    @Resource
+    private StringRedisTemplate redisTemplate;
+
+    private void test() {
+        String clientId = UUID.randomUUID().toString(); // 为每个客户端请求生成一个唯一标识
+        try {
+            redisTemplate.opsForValue().setIfAbsent("key", "value" + clientId); // 调用底层 setNx 方法，加锁
+            redisTemplate.expire("key", 10, TimeUnit.SECONDS); // 锁有效期时间，过期自动释放
+            Thread.sleep(5); // 模拟业务处理
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            // 判断如果客户端的锁是自己的，就在业务处理完之后释放锁
+            if (("value" + clientId).equals(redisTemplate.opsForValue().get("key"))) {
+                redisTemplate.delete("key");
+            }
+        }
+    }
+}
+```
+
+* 或者使用 redission API
+> 1. reddsion 在加锁后，会开启一个线程，每隔一定时间判断锁是否被释放，如果没有的话，就延长加锁时间为刚才设置的值，从而确保业务有足够时间执行完。
+> 2. 
+```java
+Rlock lock = redission.getLock();
+lock.lock(10, time);
+```
+
+> 3. 但是在主从架构中，redis 的 slave 副本是需要复制 master 主节点数据的。当 master 获取到应用线程A的锁且还未来得及被 slave 同步数据时，突然宕机。此时的 slave 有机会升为 master 节点，但是却并未及时同步到之前的锁，应用线程B会停止阻塞状态以获取锁，就会破坏分布式锁的实现，导致不一致
+> 4. 因此可使用 redLock 或者 更建议使用 zookeeper 实现分布式锁
+
