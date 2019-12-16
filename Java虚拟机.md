@@ -17,7 +17,7 @@
 ## Java 虚拟机的架构
 
 * 类加载系统负责从文件系统或者网络中加载`class`信息，加载的类信息被放在一个称为`方法区`的内存块
-* 方法区：除了要存放类的加载信息，还存放运行时常量信息(如：字符串字面量、数字常量)
+* 方法区/永久代元数据区：除了要存放类的加载信息，还存放运行时常量信息(如：字符串字面量、数字常量)
 * `Java`堆：`Java`堆在`JVM`启动时创建，是最主要的内存工作区域。几乎所有的`Java`对象实例都存放在堆中。堆空间是所有线程共享的，也是与`Java`应用密切相关的内存区间
 * 直接内存：是在`Java`堆外的、直接向系统申请的内存空间。读写性能高于`Java`堆
 * 垃圾回收：对方法区、堆和直接内存进行回收。由垃圾回收系统在后台默默完成
@@ -120,7 +120,7 @@ from	to	  target	type
 
 * 是一种优化技术。对于线程私有的对象将其打散分配在栈上，而非堆上
 
-* 栈上的对象不需要垃圾回收器的介入，在函数调用结束后自行销毁
+* 栈上的对象不需要垃圾回收器的介入，在函数调用结束后自行销毁。生命周期与线程一致
 
 * 技术基础是`逃逸分析`
 
@@ -130,10 +130,11 @@ from	to	  target	type
 
   ```java
   private static User user; // user 为逃逸对象
+  
   public static void alloc(){
   	user = new User();
       user.id = 1;
-      user.name = "lee";
+      user.name = "lee"; // user 被方法外的变量引用
   }
   
   public static void anotherAlloc(){
@@ -141,10 +142,10 @@ from	to	  target	type
       u.id = 2;            // 虚拟机有可能将其分配在栈上而非堆上
       u.name = "rayest";
   }
-  ```
-
-  * 逃逸分析示例
-
+```
+  
+* 逃逸分析示例
+  
   ```java
   public class OnStackTest {
       public static class User {
@@ -167,12 +168,12 @@ from	to	  target	type
           System.out.println(b - a);
       }
   }
-  ```
-
+```
+  
   ```bash
   $ java -server -Xmx10M  -XX:+DoEscapeAnalysis -XX:+PrintGC OnStackDemo
-  ```
-
+```
+  
   * 以上示例 OnStackTest 在运行时，累计分配空间将到达1.5G左右，若堆空间小于该值，必然会发生GC
   * `-Xmx10M` 指定堆空间大小为 10 M，`-XX:+DoEscapeAnalysis`开启逃逸分析。执行时间不超过 **6** 毫秒
   * 若`-XX:-DoEscapeAnalysis`则关闭逃逸分析，执行时间有 **1000** 多毫秒，并打印很多 GC 日志
@@ -189,7 +190,7 @@ $ java -XX:permSize=5M
 $ java -XX:MaxPermSize=64M
 ```
 
-* **JDK1.8** 中移除了永久区，取而代之的是**元数据区**，是一块堆外的直接内存
+* **JDK1.8** 中移除了永久区，取而代之的是**元数据区**，是一块堆外的**直接内存**
 * 若不指定元数据区大小，虚拟机会耗尽所有的可用系统内存
 
 # 常用Java虚拟机参数
@@ -763,5 +764,6 @@ $ jvisualvm  # 自动启动图形化界面
 
 * 当轻量级锁失败，就会启用重量级锁
 
-# Class 文件结构
+# 补充
 
+## 类加载
