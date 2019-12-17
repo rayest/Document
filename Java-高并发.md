@@ -500,4 +500,73 @@ public Semaphore(int permits, boolean fair); // 是否公平
 
 ### ReentrantLock
 
-1. 
+### 线程池
+
+```java
+package mobi.rayson;
+
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
+public class Main {
+
+    private ExecutorService threadPool = new ThreadPoolExecutor(4, 8, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(100));
+
+    public static void main(String[] args) {
+        Main main = new Main();
+        String result = main.getResultFromAllServers();
+        System.out.println("result: " + result);
+    }
+
+    private String getResultFromAllServers() {
+        Future<String> futureFromA = threadPool.submit(this::getFromServerA);
+        Future<String> futureFromB = threadPool.submit(this::getFromServerB);
+        Future<String> futureFromC = threadPool.submit(this::getFromServerC);
+        try {
+            String a = futureFromA.get();
+            String b = futureFromB.get();
+            String c = futureFromC.get();
+            return a + b + c;
+        } catch (InterruptedException | ExecutionException e) {
+            System.out.println(e.getMessage());
+        }
+        return "";
+    }
+
+    private String getFromServerC() {
+        System.out.println("从 C 服务获取数据");
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            System.out.println(e.getMessage());
+        }
+        return "c";
+    }
+
+    private String getFromServerB() {
+        System.out.println("从 B 服务获取数据");
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            System.out.println(e.getMessage());
+        }
+        return "b";
+    }
+
+    private String getFromServerA() {
+        System.out.println("从 A 服务获取数据");
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            System.out.println(e.getMessage());
+        }
+        return "a";
+    }
+}
+```
+
