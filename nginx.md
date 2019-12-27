@@ -58,8 +58,8 @@
 
 > ```nginx
 > upstream myserver {
->   server 192.168.124.20:8080;
->   server 192.168.124.20:8081;
+>   server 192.168.124.20:8080 weight=5;
+>   server 192.168.124.20:8081 weight=2;
 > }
 > 
 > server {
