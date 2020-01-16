@@ -505,3 +505,108 @@ lock.lock(10, time);
 >2. 监控、通知、故障自动转移。
 > 3. 一主二从三哨兵：1个master 节点、2个slave 节点、3个哨兵节点
 
+# Redis 单机集群搭建
+
+> 1. 复制 redis 文件夹到本目录下，以构建一主二从服务集群
+> 2. 修改三个文件夹下的 redis.conf 和 sentinel.conf 文件配置
+>
+> ```bash
+> # master redis.conf 配置
+> port 6379
+> masterauth "redis123"
+> requirepass redis123
+> # master sentinel.conf 配置
+> port 26379
+> sentinel monitor mymaster 127.0.0.1 6379 2
+> sentinel auth-pass mymaster redis123
+> 
+> # slave1 redis.conf 配置
+> port 6380
+> masterauth "redis123"
+> requirepass redis123
+> 
+> # slave1 sentinel.conf 配置
+> port 26380
+> sentinel monitor mymaster 127.0.0.1 6379 2
+> sentinel auth-pass mymaster redis123
+> 
+> # slave2 redis.conf 配置
+> port 6381
+> masterauth "redis123"
+> requirepass redis123
+> # slave2 sentinel.conf 配置
+> port 26381
+> sentinel monitor mymaster 127.0.0.1 6379 2
+> sentinel auth-pass mymaster redis123
+> ```
+>
+> 3. 分别启动 master 和 slave1 、slave2 
+>
+> ```shell
+> $ src/redis-server redis.conf # 在 redis.conf 配置中关闭 后台启动选项，以便观察日志
+> ```
+>
+> 4. 分别启动三个客户端
+>
+> ```shell
+> $ src/redis-cli -p 6379
+> $ src/redis-cli -p 6380
+> $ src/redis-cli -p 6381
+> ```
+>
+> 5. 测试 master 和 slave 的读写权限
+>
+> ```shell
+> # master 读写请求
+> 127.0.0.1:6381> get name
+> "le"
+> 127.0.0.1:6381> set name leee
+> OK
+> 127.0.0.1:6381> get name
+> "leee"
+> 
+> # slave1 读写请求
+> 127.0.0.1:6380> get name
+> "leee"
+> 127.0.0.1:6380> set name le
+> (error) READONLY You can't write against a read only slave.
+> 
+> # slave2 读写请求
+> 127.0.0.1:6381> get name
+> "leee"
+> 127.0.0.1:6381> set name le
+> (error) READONLY You can't write against a read only slave.
+> ```
+>
+> 6. 分别启动 master 的 sentinel 和 slave 的 sentinel
+>
+> ```shell
+> $ src/redis-sentinel sentinel.conf
+> 
+> # 通过客户端命令在各自的客户端会观察到 master 和 slave 之间的注册信息
+> 127.0.0.1:6380> info replication
+> # Replication
+> role:slave
+> master_host:127.0.0.1
+> master_port:6381
+> master_link_status:up
+> master_last_io_seconds_ago:1
+> master_sync_in_progress:0
+> slave_repl_offset:413713
+> slave_priority:100
+> slave_read_only:1
+> connected_slaves:0
+> master_repl_offset:0
+> repl_backlog_active:0
+> repl_backlog_size:1048576
+> repl_backlog_first_byte_offset:0
+> repl_backlog_histlen:0
+> ```
+>
+> 7. 主备切换/故障转移
+>
+> ```shell
+> # kill 掉 master 服务器进程。哨兵会在两个 slave 之间自动选举出一个作为新的 master。
+> ```
+>
+> 
